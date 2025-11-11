@@ -1,0 +1,169 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.app {
+  min-height: 100vh;
+  background: #ffffff;
+  padding: 0;
+}
+
+.app-header {
+  background: #000000;
+  color: white;
+  padding: 3rem 2rem;
+  text-align: center;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.app-header h1 {
+  font-size: 2rem;
+  font-weight: 300;
+  letter-spacing: -0.5px;
+  margin-bottom: 0.5rem;
+}
+
+.app-header p {
+  font-size: 0.95rem;
+  font-weight: 300;
+  opacity: 0.7;
+  letter-spacing: 0.3px;
+}
+
+.app-main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 4rem 2rem;
+}
+
+.upload-section {
+  background: white;
+  border: 1px solid #e5e5e5;
+  padding: 3rem;
+}
+
+.convert-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.error-message {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #000000;
+  border: 1px solid #000000;
+  text-align: center;
+}
+
+.error-message p {
+  color: #ffffff;
+  margin: 0;
+  font-weight: 400;
+  font-size: 0.9rem;
+  letter-spacing: 0.3px;
+}
+
+.success-section {
+  margin-top: 2rem;
+}
+
+.success-message {
+  color: #000000;
+  font-size: 1rem;
+  font-weight: 400;
+  text-align: center;
+  margin-bottom: 2rem;
+  letter-spacing: 0.3px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 3rem;
+}
+
+.download-btn {
+  background: #000000;
+  color: white;
+  padding: 1rem 2.5rem;
+  border: 1px solid #000000;
+  font-size: 0.9rem;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.download-btn:hover {
+  background: #ffffff;
+  color: #000000;
+}
+
+.convert-another-btn {
+  background: white;
+  color: #000000;
+  padding: 1rem 2.5rem;
+  border: 1px solid #000000;
+  font-size: 0.9rem;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.convert-another-btn:hover {
+  background: #000000;
+  color: #ffffff;
+}
+
+.pdf-preview {
+  margin-top: 3rem;
+  border-top: 1px solid #e5e5e5;
+  padding-top: 3rem;
+}
+
+.pdf-preview h3 {
+  color: #000000;
+  margin-bottom: 1.5rem;
+  font-weight: 400;
+  font-size: 1rem;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.selected-file-info {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.selected-file-info p {
+  color: #000000;
+  font-size: 0.95rem;
+  margin-bottom: 2rem;
+  font-weight: 300;
+  letter-spacing: 0.3px;
+}
+
+.convert-btn {
+  background: #000000;
+  color: white;
+  padding: 1rem 3rem;
+  border: 1px solid #000000;
+  font-size: 0.9rem;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.convert-btn:hover:not(:disabled) {
+  background: #ffffff;
+  color: #000000;
+}
