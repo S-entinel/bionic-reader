@@ -2,28 +2,46 @@ import axios from 'axios'
 
 const API_BASE_URL = 'http://localhost:8000'
 
-export interface ConversionResponse {
-  filename: string
-  message: string
+export interface Chapter {
+  id: number
+  title: string
+  file_name: string
 }
 
-export const convertPDF = async (file: File): Promise<Blob> => {
+export interface EPUBUploadResponse {
+  file_id: string
+  filename: string
+  title: string
+  author: string
+  total_chapters: number
+  chapters: Chapter[]
+}
+
+export interface ChapterContent {
+  chapter_id: number
+  html_content: string
+}
+
+export const uploadEPUB = async (file: File): Promise<EPUBUploadResponse> => {
   const formData = new FormData()
   formData.append('file', file)
 
-  try {
-    const response = await axios.post(`${API_BASE_URL}/api/convert`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      responseType: 'blob', // Important: we're receiving a PDF file back
-    })
+  const response = await axios.post(`${API_BASE_URL}/api/upload-epub`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
 
-    return response.data
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      throw new Error(error.response?.data?.message || 'Conversion failed')
-    }
-    throw error
-  }
+  return response.data
+}
+
+export const getChapterContent = async (
+  fileId: string,
+  chapterId: number,
+  boldPercentage: number = 0.5
+): Promise<ChapterContent> => {
+  const response = await axios.get(
+    `${API_BASE_URL}/api/chapter/${fileId}/${chapterId}`,
+    { params: { bold_percentage: boldPercentage } }
+  )
+
+  return response.data
 }
