@@ -257,6 +257,19 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
               __html: bionicEnabled ? chapterContent : chapterContent.replace(/<\/?strong>/g, '') 
             }}
           />
+          <style>{`
+            /* Image styling for EPUB content */
+            img {
+              max-width: 100%;
+              height: auto;
+              display: block;
+              margin: 20px auto;
+              border-radius: 4px;
+            }
+            
+            /* Ensure images work in both light and dark mode */
+            ${darkMode ? 'img { opacity: 0.9; }' : ''}
+          `}</style>
         </div>
       )}
     </div>
