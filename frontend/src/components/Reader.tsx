@@ -11,7 +11,7 @@ interface ReaderProps {
 const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
   const [currentChapter, setCurrentChapter] = useState(0)
   const [currentPage, setCurrentPage] = useState(0)
-  const [chapterContent, setChapterContent] = useState('')
+  const [rawChapterContent, setRawChapterContent] = useState('') // Raw HTML without bionic
   const [bionicEnabled, setBionicEnabled] = useState(true)
   const [boldPercentage, setBoldPercentage] = useState(0.5)
   const [fontSize, setFontSize] = useState(18)
@@ -29,10 +29,10 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
   const [totalPages, setTotalPages] = useState(0)
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null)
 
-  // Theme colors - book on desk aesthetic
+  // Theme colors
   const theme = {
-    desk: '#000000', // Black desk
-    pageBg: darkMode ? '#2c2416' : '#f4f1e8', // Paper color
+    desk: '#000000',
+    pageBg: darkMode ? '#2c2416' : '#f4f1e8',
     text: darkMode ? '#e8dcc8' : '#2c2416',
     textSecondary: darkMode ? '#b8a890' : '#5c5246',
     border: darkMode ? '#4a3f2f' : '#d4cbb8',
@@ -45,10 +45,75 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
     shadow: 'rgba(0, 0, 0, 0.4)',
   }
 
-  // Calculate page height - book page size
+  // CLIENT-SIDE bionic formatting - instant updates!
+  const applyBionicFormatting = (html: string, percentage: number): string => {
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(html, 'text/html')
+    
+    const processNode = (node: Node) => {
+      if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+        const text = node.textContent
+        if (text.trim()) {
+          const words = text.split(/(\s+)/)
+          const formatted = words.map(word => {
+            if (!word.trim()) return word
+            
+            const match = word.match(/^(\W*)(\w+)(\W*)$/)
+            if (!match) return word
+            
+            const [, prefix, core, suffix] = match
+            const len = core.length
+            let boldCount = 1
+            
+            if (len <= 2) boldCount = 1
+            else if (len <= 5) boldCount = 2
+            else boldCount = Math.max(1, Math.floor(len * percentage))
+            
+            const bold = core.slice(0, boldCount)
+            const regular = core.slice(boldCount)
+            
+            return `${prefix}<strong>${bold}</strong>${regular}${suffix}`
+          }).join('')
+          
+          const span = doc.createElement('span')
+          span.innerHTML = formatted
+          node.parentNode?.replaceChild(span, node)
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const element = node as Element
+        if (!['SCRIPT', 'STYLE', 'STRONG'].includes(element.tagName)) {
+          Array.from(node.childNodes).forEach(processNode)
+        }
+      }
+    }
+    
+    Array.from(doc.body.childNodes).forEach(processNode)
+    return doc.body.innerHTML
+  }
+
+  // Get the formatted content for display
+  const displayContent = (() => {
+    if (bionicEnabled) {
+      return applyBionicFormatting(rawChapterContent, boldPercentage)
+    } else {
+      // Strip ALL <strong> tags when bionic is disabled
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(rawChapterContent, 'text/html')
+      
+      // Remove all strong tags but keep their text content
+      const strongTags = doc.querySelectorAll('strong')
+      strongTags.forEach(strong => {
+        const textNode = doc.createTextNode(strong.textContent || '')
+        strong.parentNode?.replaceChild(textNode, strong)
+      })
+      
+      return doc.body.innerHTML
+    }
+  })()
+
+  // Calculate page height
   useEffect(() => {
     const calculatePageHeight = () => {
-      // Book takes up most of screen but leaves black border
       const height = window.innerHeight * 0.85
       setPageHeight(height)
     }
@@ -64,17 +129,18 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
       const pages = Math.ceil(contentHeight / pageHeight)
       setTotalPages(pages)
     }
-  }, [chapterContent, pageHeight, fontSize])
+  }, [displayContent, pageHeight, fontSize])
 
-  // Load chapter content
+  // Load chapter content (raw HTML only)
   useEffect(() => {
     const loadChapter = async () => {
       setIsLoading(true)
       setCurrentPage(0)
       
       try {
-        const data = await getChapterContent(fileId, currentChapter, boldPercentage)
-        setChapterContent(data.html_content)
+        // Load with boldPercentage = 0 to get raw content
+        const data = await getChapterContent(fileId, currentChapter, 0)
+        setRawChapterContent(data.html_content)
       } catch (error) {
         console.error('Failed to load chapter:', error)
         alert('Failed to load chapter')
@@ -83,7 +149,7 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
       }
     }
     loadChapter()
-  }, [fileId, currentChapter, boldPercentage])
+  }, [fileId, currentChapter])
 
   // Scroll to current page
   useEffect(() => {
@@ -189,7 +255,94 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
       left: 0,
     }}>
       
-      {/* The Book - centered on black desk */}
+      {/* Floating Controls in Top Left Corner of Black Background */}
+      <div style={{
+        position: 'fixed',
+        top: '20px',
+        left: '20px',
+        zIndex: 500,
+        display: 'flex',
+        gap: '10px',
+      }}>
+        <button
+          onClick={() => setShowTOC(!showTOC)}
+          style={{
+            background: theme.controlBg,
+            border: `1px solid ${theme.border}`,
+            borderRadius: '8px',
+            padding: '12px 16px',
+            cursor: 'pointer',
+            color: theme.text,
+            fontSize: '16px',
+            backdropFilter: 'blur(10px)',
+            boxShadow: `0 4px 12px ${theme.shadow}`,
+          }}
+          title="Table of Contents"
+        >
+          ☰
+        </button>
+        <button
+          onClick={() => setShowSettings(!showSettings)}
+          style={{
+            background: theme.controlBg,
+            border: `1px solid ${theme.border}`,
+            borderRadius: '8px',
+            padding: '12px 16px',
+            cursor: 'pointer',
+            color: theme.text,
+            fontSize: '16px',
+            backdropFilter: 'blur(10px)',
+            boxShadow: `0 4px 12px ${theme.shadow}`,
+          }}
+          title="Settings"
+        >
+          ⚙️
+        </button>
+        <button
+          onClick={onNewFile}
+          style={{
+            background: theme.buttonBg,
+            border: `1px solid ${theme.border}`,
+            borderRadius: '8px',
+            padding: '12px 20px',
+            cursor: 'pointer',
+            color: theme.text,
+            fontSize: '14px',
+            backdropFilter: 'blur(10px)',
+            boxShadow: `0 4px 12px ${theme.shadow}`,
+          }}
+        >
+          New Book
+        </button>
+      </div>
+
+      {/* Book Title Floating Top Center */}
+      {showControls && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 500,
+          background: theme.controlBg,
+          border: `1px solid ${theme.border}`,
+          borderRadius: '8px',
+          padding: '12px 24px',
+          backdropFilter: 'blur(10px)',
+          boxShadow: `0 4px 12px ${theme.shadow}`,
+          color: theme.text,
+          fontSize: '16px',
+          fontWeight: 500,
+          maxWidth: '500px',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>
+          {bookTitle}
+        </div>
+      )}
+
+      {/* The Book - centered */}
       <div style={{
         width: '850px',
         height: `${pageHeight}px`,
@@ -201,81 +354,7 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
         fontFamily: "'Palatino Linotype', 'Book Antiqua', Palatino, serif",
       }}>
         
-        {/* Top Header Bar - part of the book */}
-        <div style={{
-          height: showControls ? '50px' : '0',
-          background: theme.controlBg,
-          borderBottom: showControls ? `1px solid ${theme.border}` : 'none',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 30px',
-          transition: 'all 0.3s ease',
-          overflow: 'hidden',
-          opacity: showControls ? 1 : 0,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <button
-              onClick={() => setShowTOC(!showTOC)}
-              style={{
-                background: 'none',
-                border: 'none',
-                fontSize: '20px',
-                cursor: 'pointer',
-                color: theme.text,
-                padding: '4px 8px',
-              }}
-              title="Table of Contents"
-            >
-              ☰
-            </button>
-            <h1 style={{ 
-              margin: 0, 
-              fontSize: '16px', 
-              fontWeight: 500,
-              maxWidth: '400px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              color: theme.text,
-            }}>
-              {bookTitle}
-            </h1>
-          </div>
-
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              style={{
-                background: 'none',
-                border: 'none',
-                fontSize: '18px',
-                cursor: 'pointer',
-                color: theme.text,
-                padding: '4px 8px',
-              }}
-              title="Settings"
-            >
-              ⚙
-            </button>
-            <button
-              onClick={onNewFile}
-              style={{
-                background: theme.buttonBg,
-                border: 'none',
-                padding: '6px 14px',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                color: theme.text,
-                fontSize: '13px',
-              }}
-            >
-              New Book
-            </button>
-          </div>
-        </div>
-
-        {/* Main Reading Content - the book page */}
+        {/* Main Reading Content */}
         {isLoading ? (
           <div style={{
             flex: 1,
@@ -309,14 +388,12 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
                 fontSize: `${fontSize}px`,
                 color: theme.text,
               }}
-              dangerouslySetInnerHTML={{ 
-                __html: bionicEnabled ? chapterContent : chapterContent.replace(/<\/?strong>/g, '') 
-              }}
+              dangerouslySetInnerHTML={{ __html: displayContent }}
             />
           </div>
         )}
 
-        {/* Bottom Progress Bar - part of the book */}
+        {/* Bottom Progress Bar */}
         <div style={{
           height: '35px',
           background: theme.controlBg,
@@ -352,7 +429,7 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
           </div>
         </div>
 
-        {/* Chapter info overlay */}
+        {/* Chapter info badge */}
         {showControls && (
           <div style={{
             position: 'absolute',
@@ -373,7 +450,7 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
         )}
       </div>
 
-      {/* Table of Contents Overlay - floats over everything */}
+      {/* Table of Contents Modal */}
       {showTOC && (
         <>
           <div 
@@ -444,7 +521,7 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
         </>
       )}
 
-      {/* Settings Overlay */}
+      {/* Settings Modal */}
       {showSettings && (
         <>
           <div 
@@ -484,6 +561,7 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
               Reading Settings
             </h2>
 
+            {/* Bionic Reading Toggle */}
             <div style={{ marginBottom: '24px' }}>
               <label style={{ 
                 display: 'flex', 
@@ -501,8 +579,17 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
                 />
                 Bionic Reading
               </label>
+              <div style={{ 
+                fontSize: '12px', 
+                color: theme.textSecondary, 
+                marginTop: '6px',
+                marginLeft: '26px',
+              }}>
+                ⚡ Changes apply instantly
+              </div>
             </div>
 
+            {/* Bold Percentage Slider */}
             {bionicEnabled && (
               <div style={{ marginBottom: '24px' }}>
                 <label style={{ fontSize: '13px', color: theme.textSecondary, display: 'block', marginBottom: '10px' }}>
@@ -517,9 +604,17 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
                   onChange={(e) => setBoldPercentage(parseFloat(e.target.value))}
                   style={{ width: '100%', cursor: 'pointer' }}
                 />
+                <div style={{ 
+                  fontSize: '12px', 
+                  color: theme.textSecondary, 
+                  marginTop: '6px',
+                }}>
+                  Adjust in real-time - no loading!
+                </div>
               </div>
             )}
 
+            {/* Font Size */}
             <div style={{ marginBottom: '24px' }}>
               <label style={{ fontSize: '13px', color: theme.textSecondary, display: 'block', marginBottom: '10px' }}>
                 Font Size: {fontSize}px
@@ -535,6 +630,7 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
               />
             </div>
 
+            {/* Dark Mode */}
             <div style={{ marginBottom: '24px' }}>
               <label style={{ 
                 display: 'flex', 
@@ -554,6 +650,7 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
               </label>
             </div>
 
+            {/* Tips */}
             <div style={{ 
               padding: '14px',
               background: theme.buttonBg,
@@ -574,7 +671,6 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
 
       {/* Global styles for book content */}
       <style>{`
-        /* Book page styling */
         p {
           text-indent: 30px;
           margin: 15px 0;
@@ -608,7 +704,6 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
           border-radius: 4px;
         }
         
-        /* Hide scrollbar but keep functionality */
         ::-webkit-scrollbar {
           display: none;
         }

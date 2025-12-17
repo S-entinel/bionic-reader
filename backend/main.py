@@ -56,7 +56,7 @@ async def upload_epub(file: UploadFile = File(...)):
 async def get_chapter(
     file_id: str,
     chapter_id: int,
-    bold_percentage: float = Query(0.5, ge=0.3, le=0.7)
+    bold_percentage: float = Query(0.5, ge=0.0, le=0.7)
 ):
     """
     Get a specific chapter's content with bionic formatting.
@@ -64,7 +64,8 @@ async def get_chapter(
     Args:
         file_id: Session ID from upload
         chapter_id: Chapter index (0-based)
-        bold_percentage: Percentage of each word to bold (0.3-0.7)
+        bold_percentage: Percentage of each word to bold (0.0-0.7)
+                        Use 0.0 to get raw HTML without bionic formatting
     """
     # Retrieve file
     epub_bytes = file_manager.get_file(file_id)
