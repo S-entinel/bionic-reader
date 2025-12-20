@@ -1,19 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
-import { getChapterContent, type Chapter } from '../services/api'
 
 interface ReaderProps {
-  fileId: string
-  chapters: Chapter[]
+  bookContent: string
   bookTitle: string
   onNewFile: () => void
 }
 
-const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
+const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
   // Reading state
-  const [currentChapter, setCurrentChapter] = useState(0)
   const [scrollPosition, setScrollPosition] = useState(0)
-  const [rawChapterContent, setRawChapterContent] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
   
   // Display preferences
   const [bionicEnabled, setBionicEnabled] = useState(true)
@@ -24,7 +19,6 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
   
   // UI state
   const [showControls, setShowControls] = useState(true)
-  const [showTOC, setShowTOC] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   
   // Refs
@@ -49,6 +43,8 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
   // ==================== BIONIC FORMATTING ====================
   
   const applyBionicFormatting = (html: string, percentage: number): string => {
+    if (!html) return ''
+    
     const parser = new DOMParser()
     const doc = parser.parseFromString(html, 'text/html')
     
@@ -94,6 +90,8 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
   }
 
   const stripBoldTags = (html: string): string => {
+    if (!html) return ''
+    
     const parser = new DOMParser()
     const doc = parser.parseFromString(html, 'text/html')
     const strongTags = doc.querySelectorAll('strong')
@@ -104,23 +102,30 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
     return doc.body.innerHTML
   }
 
-  const displayContent = bionicEnabled 
-    ? applyBionicFormatting(rawChapterContent, boldPercentage)
-    : stripBoldTags(rawChapterContent)
+  // Apply formatting to the entire book
+  const displayContent = bookContent 
+    ? (bionicEnabled 
+        ? applyBionicFormatting(bookContent, boldPercentage)
+        : stripBoldTags(bookContent))
+    : ''
 
-  // ==================== PAGINATION ====================
+  // ==================== PAGINATION & PROGRESS ====================
   
-  const pageHeight = contentRef.current 
-    ? contentRef.current.clientHeight 
-    : window.innerHeight * 0.85 - 120
+  const pageHeight = scrollContainerRef.current 
+    ? scrollContainerRef.current.clientHeight 
+    : window.innerHeight * 0.85 - 40
 
   const totalHeight = contentRef.current ? contentRef.current.scrollHeight : 0
-  const currentPage = totalHeight > 0 ? Math.floor(scrollPosition / pageHeight) + 1 : 1
-  const totalPages = totalHeight > 0 ? Math.ceil(totalHeight / pageHeight) : 1
+  const maxScroll = scrollContainerRef.current && contentRef.current
+    ? contentRef.current.scrollHeight - scrollContainerRef.current.clientHeight 
+    : 0
 
-  const chapterProgress = currentChapter / Math.max(1, chapters.length)
-  const pageProgress = totalPages > 1 ? ((currentPage - 1) / totalPages) / Math.max(1, chapters.length) : 0
-  const totalProgress = Math.min(100, (chapterProgress + pageProgress) * 100)
+  // Simple progress percentage based on scroll position
+  const progress = maxScroll > 0 ? (scrollPosition / maxScroll) * 100 : 0
+
+  // Current page and total pages
+  const currentPage = totalHeight > 0 && pageHeight > 0 ? Math.floor(scrollPosition / pageHeight) + 1 : 1
+  const totalPages = totalHeight > 0 && pageHeight > 0 ? Math.ceil(totalHeight / pageHeight) : 1
 
   // ==================== NAVIGATION ====================
   
@@ -139,20 +144,11 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
       const maxScroll = contentRef.current.scrollHeight - scrollContainerRef.current.clientHeight
       const newScroll = Math.min(maxScroll, scrollPosition + pageHeight)
       
-      if (newScroll >= maxScroll && currentChapter < chapters.length - 1) {
-        setCurrentChapter(currentChapter + 1)
-      } else {
-        scrollContainerRef.current.scrollTo({
-          top: newScroll,
-          behavior: 'smooth'
-        })
-      }
+      scrollContainerRef.current.scrollTo({
+        top: newScroll,
+        behavior: 'smooth'
+      })
     }
-  }
-
-  const goToChapter = (chapterId: number) => {
-    setCurrentChapter(chapterId)
-    setShowTOC(false)
   }
 
   const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -176,44 +172,22 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
   }
 
   // ==================== EFFECTS ====================
-  
-  // Load chapter content
-  useEffect(() => {
-    const loadChapter = async () => {
-      setIsLoading(true)
-      setScrollPosition(0)
-      if (scrollContainerRef.current) {
-        scrollContainerRef.current.scrollTop = 0
-      }
-      
-      try {
-        const data = await getChapterContent(fileId, currentChapter, 0)
-        setRawChapterContent(data.html_content)
-      } catch (error) {
-        console.error('Failed to load chapter:', error)
-        alert('Failed to load chapter')
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    loadChapter()
-  }, [fileId, currentChapter])
 
   // Auto-hide controls
   useEffect(() => {
-    if (showControls && !showTOC && !showSettings) {
+    if (showControls && !showSettings) {
       if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current)
       hideControlsTimer.current = setTimeout(() => setShowControls(false), 3000)
     }
     return () => {
       if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current)
     }
-  }, [showControls, showTOC, showSettings])
+  }, [showControls, showSettings])
 
   // Keyboard navigation
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      if (showTOC || showSettings) return
+      if (showSettings) return
       
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         goToPrevPage()
@@ -229,7 +203,29 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
     return () => window.removeEventListener('keydown', handleKeyPress)
   })
 
+  // Debug: Log when bookContent changes
+  useEffect(() => {
+    console.log('Book content loaded:', bookContent ? `${bookContent.length} characters` : 'empty')
+  }, [bookContent])
+
   // ==================== RENDER ====================
+
+  if (!bookContent) {
+    return (
+      <div style={{
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#faf9f6',
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+          <div style={{ fontSize: '18px', color: '#666' }}>No book content loaded</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{
@@ -257,22 +253,6 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
         transition: 'opacity 0.3s',
         pointerEvents: showControls ? 'auto' : 'none',
       }}>
-        <button
-          onClick={() => setShowTOC(!showTOC)}
-          style={{
-            background: theme.controlBg,
-            border: `1px solid ${theme.border}`,
-            borderRadius: '6px',
-            padding: '10px 14px',
-            cursor: 'pointer',
-            color: theme.text,
-            fontSize: '16px',
-            backdropFilter: 'blur(10px)',
-            boxShadow: `0 2px 8px ${theme.shadow}`,
-          }}
-        >
-          ☰
-        </button>
         <button
           onClick={() => setShowSettings(!showSettings)}
           style={{
@@ -347,46 +327,30 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
       }}>
         
         {/* Page Content */}
-        {isLoading ? (
-          <div style={{
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          onClick={handleContentClick}
+          style={{
             flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '16px',
-            color: theme.textSecondary,
-          }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '32px', marginBottom: '16px' }}>📖</div>
-              Loading chapter...
-            </div>
-          </div>
-        ) : (
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            cursor: 'pointer',
+            scrollBehavior: 'smooth',
+          }}
+        >
           <div
-            ref={scrollContainerRef}
-            onScroll={handleScroll}
-            onClick={handleContentClick}
+            ref={contentRef}
             style={{
-              flex: 1,
-              overflowY: 'auto',
-              overflowX: 'hidden',
-              cursor: 'pointer',
-              scrollBehavior: 'smooth',
+              padding: '60px 80px',
+              fontSize: `${fontSize}px`,
+              lineHeight: `${lineHeight}`,
+              color: theme.text,
+              minHeight: '100%',
             }}
-          >
-            <div
-              ref={contentRef}
-              style={{
-                padding: '60px 80px',
-                fontSize: `${fontSize}px`,
-                lineHeight: `${lineHeight}`,
-                color: theme.text,
-                minHeight: '100%',
-              }}
-              dangerouslySetInnerHTML={{ __html: displayContent }}
-            />
-          </div>
-        )}
+            dangerouslySetInnerHTML={{ __html: displayContent }}
+          />
+        </div>
 
         {/* Progress Bar */}
         <div style={{
@@ -406,7 +370,7 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
             overflow: 'hidden',
           }}>
             <div style={{
-              width: `${totalProgress}%`,
+              width: `${progress}%`,
               height: '100%',
               background: theme.text,
               transition: 'width 0.3s ease',
@@ -423,25 +387,6 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
             {currentPage} / {totalPages}
           </div>
         </div>
-
-        {/* Chapter Badge */}
-        {showControls && (
-          <div style={{
-            position: 'absolute',
-            bottom: '55px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: theme.controlBg,
-            padding: '8px 16px',
-            borderRadius: '12px',
-            fontSize: '11px',
-            color: theme.textSecondary,
-            border: `1px solid ${theme.border}`,
-            pointerEvents: 'none',
-          }}>
-            {chapters[currentChapter]?.title}
-          </div>
-        )}
       </div>
 
       {/* Page Turn Indicators */}
@@ -473,77 +418,6 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
         }}>
           ›
         </div>
-      )}
-
-      {/* Table of Contents */}
-      {showTOC && (
-        <>
-          <div 
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(0, 0, 0, 0.5)',
-              zIndex: 1000,
-            }}
-            onClick={() => setShowTOC(false)}
-          />
-          <div style={{
-            position: 'fixed',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: '400px',
-            maxHeight: '70vh',
-            background: theme.overlayBg,
-            backdropFilter: 'blur(10px)',
-            zIndex: 1001,
-            overflowY: 'auto',
-            padding: '30px',
-            borderRadius: '6px',
-            boxShadow: `0 10px 40px ${theme.shadow}`,
-            border: `1px solid ${theme.border}`,
-          }}>
-            <h2 style={{ 
-              fontSize: '18px', 
-              marginBottom: '20px',
-              fontWeight: 500,
-              color: theme.text,
-            }}>
-              Contents
-            </h2>
-            {chapters.map((chapter) => (
-              <div
-                key={chapter.id}
-                onClick={() => goToChapter(chapter.id)}
-                style={{
-                  padding: '10px 14px',
-                  marginBottom: '4px',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  background: currentChapter === chapter.id ? theme.buttonBg : 'transparent',
-                  transition: 'background 0.2s',
-                  fontSize: '14px',
-                  color: theme.text,
-                }}
-                onMouseEnter={(e) => {
-                  if (currentChapter !== chapter.id) {
-                    e.currentTarget.style.background = theme.buttonBg
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (currentChapter !== chapter.id) {
-                    e.currentTarget.style.background = 'transparent'
-                  }
-                }}
-              >
-                {chapter.title}
-              </div>
-            ))}
-          </div>
-        </>
       )}
 
       {/* Settings */}
@@ -676,6 +550,10 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
 
       {/* Global Styles */}
       <style>{`
+        .chapter-content {
+          margin-bottom: 3em;
+        }
+        
         p {
           margin: 1em 0;
           text-align: justify;
@@ -686,7 +564,7 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
           text-indent: 0;
         }
         
-        p:first-of-type::first-letter {
+        .chapter-content > p:first-of-type::first-letter {
           font-size: 3em;
           float: left;
           line-height: 0.9;

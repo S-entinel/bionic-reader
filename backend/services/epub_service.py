@@ -6,12 +6,12 @@ import tempfile
 import os
 import base64
 
-def extract_epub_data(epub_bytes: bytes) -> Dict:
+def process_full_epub(epub_bytes: bytes) -> Dict:
     """
-    Extract chapters and metadata from an EPUB file.
+    Process an entire EPUB file and return all content as a single HTML document.
     
     Returns:
-        Dictionary with metadata and chapter list
+        Dictionary with metadata and complete book HTML
     """
     with tempfile.NamedTemporaryFile(delete=False, suffix='.epub') as tmp_file:
         tmp_file.write(epub_bytes)
@@ -27,32 +27,37 @@ def extract_epub_data(epub_bytes: bytes) -> Dict:
         author = book.get_metadata('DC', 'creator')
         author = author[0][0] if author else 'Unknown'
         
-        # Extract chapters
-        chapters = []
-        chapter_index = 0
+        # Combine all chapters into one HTML document
+        all_html_parts = []
         
-        for item in book.get_items():
-            if item.get_type() == ebooklib.ITEM_DOCUMENT:
-                content = item.get_content().decode('utf-8')
-                soup = BeautifulSoup(content, 'lxml')
-                
-                # Try to find chapter title
-                title_tag = soup.find(['h1', 'h2', 'h3', 'title'])
-                chapter_title = title_tag.get_text().strip() if title_tag else f"Chapter {chapter_index + 1}"
-                
-                chapters.append({
-                    'id': chapter_index,
-                    'title': chapter_title,
-                    'file_name': item.get_name()
-                })
-                
-                chapter_index += 1
+        # Get all document items
+        documents = [item for item in book.get_items() if item.get_type() == ebooklib.ITEM_DOCUMENT]
+        
+        for item in documents:
+            content = item.get_content().decode('utf-8')
+            soup = BeautifulSoup(content, 'lxml')
+            
+            # Convert images to base64
+            convert_images_to_base64(soup, book)
+            
+            # Get the body content
+            body = soup.find('body')
+            if body:
+                # Add a chapter separator div
+                chapter_div = soup.new_tag('div', **{'class': 'chapter-content'})
+                for child in list(body.children):
+                    chapter_div.append(child)
+                all_html_parts.append(str(chapter_div))
+            else:
+                all_html_parts.append(str(soup))
+        
+        # Combine all parts into one HTML
+        complete_html = '\n'.join(all_html_parts)
         
         return {
             'title': title,
             'author': author,
-            'total_chapters': len(chapters),
-            'chapters': chapters
+            'html_content': complete_html
         }
     finally:
         if os.path.exists(tmp_path):
@@ -104,51 +109,3 @@ def convert_images_to_base64(soup: BeautifulSoup, book: epub.EpubBook):
                 
             except Exception as e:
                 print(f"Failed to convert image {src}: {e}")
-
-
-def get_chapter_content(epub_bytes: bytes, chapter_id: int, bold_percentage: float = 0.5) -> Dict:
-    """
-    Get a specific chapter's content as clean HTML.
-    
-    Args:
-        epub_bytes: EPUB file content
-        chapter_id: Chapter index (0-based)
-        bold_percentage: Kept for API compatibility but not used (formatting is client-side)
-    
-    Returns:
-        Dictionary with chapter HTML content
-    """
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.epub') as tmp_file:
-        tmp_file.write(epub_bytes)
-        tmp_path = tmp_file.name
-    
-    try:
-        book = epub.read_epub(tmp_path)
-        
-        # Get all document items
-        documents = [item for item in book.get_items() if item.get_type() == ebooklib.ITEM_DOCUMENT]
-        
-        if chapter_id < 0 or chapter_id >= len(documents):
-            raise ValueError(f"Invalid chapter ID. Book has {len(documents)} chapters.")
-        
-        # Get chapter content
-        item = documents[chapter_id]
-        content = item.get_content().decode('utf-8')
-        
-        # Parse the HTML
-        soup = BeautifulSoup(content, 'lxml')
-        
-        # Convert images to base64 data URLs
-        convert_images_to_base64(soup, book)
-        
-        # Get the body content or full HTML
-        body = soup.find('body')
-        formatted_html = str(body) if body else str(soup)
-        
-        return {
-            'chapter_id': chapter_id,
-            'html_content': formatted_html
-        }
-    finally:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
