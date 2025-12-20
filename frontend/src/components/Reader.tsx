@@ -15,29 +15,23 @@ const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
   const [boldPercentage, setBoldPercentage] = useState(0.5)
   const [fontSize, setFontSize] = useState(18)
   const [lineHeight, setLineHeight] = useState(1.6)
-  const [darkMode, setDarkMode] = useState(false)
   
   // UI state
-  const [showControls, setShowControls] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   
   // Refs
   const contentRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const hideControlsTimer = useRef<NodeJS.Timeout | null>(null)
 
-  // Theme configuration
+  // Remarkable-inspired monochrome theme
   const theme = {
-    desk: '#1a1a1a',
-    pageBg: darkMode ? '#1e1e1e' : '#faf9f6',
-    text: darkMode ? '#d4d4d4' : '#2a2a2a',
-    textSecondary: darkMode ? '#8a8a8a' : '#666666',
-    border: darkMode ? '#2a2a2a' : '#e0e0e0',
-    controlBg: darkMode ? 'rgba(30, 30, 30, 0.95)' : 'rgba(250, 249, 246, 0.95)',
-    overlayBg: darkMode ? 'rgba(25, 25, 25, 0.98)' : 'rgba(250, 249, 246, 0.98)',
-    buttonBg: darkMode ? '#2a2a2a' : '#f0f0f0',
-    buttonHover: darkMode ? '#3a3a3a' : '#e5e5e5',
-    shadow: darkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.15)',
+    bg: '#ffffff',
+    paper: '#fafafa',
+    text: '#1a1a1a',
+    textLight: '#666666',
+    border: '#e0e0e0',
+    accent: '#2a2a2a',
+    shadow: 'rgba(0, 0, 0, 0.08)',
   }
 
   // ==================== BIONIC FORMATTING ====================
@@ -111,10 +105,6 @@ const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
 
   // ==================== PAGINATION & PROGRESS ====================
   
-  const pageHeight = scrollContainerRef.current 
-    ? scrollContainerRef.current.clientHeight 
-    : window.innerHeight * 0.85 - 40
-
   const totalHeight = contentRef.current ? contentRef.current.scrollHeight : 0
   const maxScroll = scrollContainerRef.current && contentRef.current
     ? contentRef.current.scrollHeight - scrollContainerRef.current.clientHeight 
@@ -123,90 +113,13 @@ const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
   // Simple progress percentage based on scroll position
   const progress = maxScroll > 0 ? (scrollPosition / maxScroll) * 100 : 0
 
-  // Current page and total pages
-  const currentPage = totalHeight > 0 && pageHeight > 0 ? Math.floor(scrollPosition / pageHeight) + 1 : 1
-  const totalPages = totalHeight > 0 && pageHeight > 0 ? Math.ceil(totalHeight / pageHeight) : 1
-
   // ==================== NAVIGATION ====================
-  
-  const goToPrevPage = () => {
-    if (scrollContainerRef.current) {
-      const newScroll = Math.max(0, scrollPosition - pageHeight)
-      scrollContainerRef.current.scrollTo({
-        top: newScroll,
-        behavior: 'smooth'
-      })
-    }
-  }
-
-  const goToNextPage = () => {
-    if (scrollContainerRef.current && contentRef.current) {
-      const maxScroll = contentRef.current.scrollHeight - scrollContainerRef.current.clientHeight
-      const newScroll = Math.min(maxScroll, scrollPosition + pageHeight)
-      
-      scrollContainerRef.current.scrollTo({
-        top: newScroll,
-        behavior: 'smooth'
-      })
-    }
-  }
-
-  const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const clickX = e.clientX - rect.left
-    const width = rect.width
-    
-    if (clickX < width * 0.3) {
-      goToPrevPage()
-    } else if (clickX > width * 0.7) {
-      goToNextPage()
-    } else {
-      setShowControls(!showControls)
-    }
-  }
 
   const handleScroll = () => {
     if (scrollContainerRef.current) {
       setScrollPosition(scrollContainerRef.current.scrollTop)
     }
   }
-
-  // ==================== EFFECTS ====================
-
-  // Auto-hide controls
-  useEffect(() => {
-    if (showControls && !showSettings) {
-      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current)
-      hideControlsTimer.current = setTimeout(() => setShowControls(false), 3000)
-    }
-    return () => {
-      if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current)
-    }
-  }, [showControls, showSettings])
-
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (showSettings) return
-      
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-        goToPrevPage()
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
-        e.preventDefault()
-        goToNextPage()
-      } else if (e.key === 'Escape') {
-        setShowControls(!showControls)
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyPress)
-    return () => window.removeEventListener('keydown', handleKeyPress)
-  })
-
-  // Debug: Log when bookContent changes
-  useEffect(() => {
-    console.log('Book content loaded:', bookContent ? `${bookContent.length} characters` : 'empty')
-  }, [bookContent])
 
   // ==================== RENDER ====================
 
@@ -217,11 +130,12 @@ const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#faf9f6',
+        background: theme.paper,
+        fontFamily: "'Charter', 'Georgia', serif",
       }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
-          <div style={{ fontSize: '18px', color: '#666' }}>No book content loaded</div>
+          <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}>📖</div>
+          <div style={{ fontSize: '16px', color: theme.textLight }}>No book content loaded</div>
         </div>
       </div>
     )
@@ -232,138 +146,63 @@ const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
       height: '100vh',
       width: '100vw',
       overflow: 'hidden',
-      background: theme.desk,
+      background: theme.bg,
       display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
       position: 'fixed',
       top: 0,
       left: 0,
+      fontFamily: "'Charter', 'Georgia', serif",
     }}>
       
-      {/* Floating Controls */}
+      {/* Left Sidebar - Persistent Controls */}
       <div style={{
-        position: 'fixed',
-        top: '20px',
-        left: '20px',
-        zIndex: 500,
-        display: 'flex',
-        gap: '10px',
-        opacity: showControls ? 1 : 0,
-        transition: 'opacity 0.3s',
-        pointerEvents: showControls ? 'auto' : 'none',
-      }}>
-        <button
-          onClick={() => setShowSettings(!showSettings)}
-          style={{
-            background: theme.controlBg,
-            border: `1px solid ${theme.border}`,
-            borderRadius: '6px',
-            padding: '10px 14px',
-            cursor: 'pointer',
-            color: theme.text,
-            fontSize: '16px',
-            backdropFilter: 'blur(10px)',
-            boxShadow: `0 2px 8px ${theme.shadow}`,
-          }}
-        >
-          ⚙️
-        </button>
-        <button
-          onClick={onNewFile}
-          style={{
-            background: theme.buttonBg,
-            border: `1px solid ${theme.border}`,
-            borderRadius: '6px',
-            padding: '10px 18px',
-            cursor: 'pointer',
-            color: theme.text,
-            fontSize: '13px',
-            backdropFilter: 'blur(10px)',
-            boxShadow: `0 2px 8px ${theme.shadow}`,
-          }}
-        >
-          New Book
-        </button>
-      </div>
-
-      {/* Book Title */}
-      {showControls && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 500,
-          background: theme.controlBg,
-          border: `1px solid ${theme.border}`,
-          borderRadius: '6px',
-          padding: '10px 24px',
-          backdropFilter: 'blur(10px)',
-          boxShadow: `0 2px 8px ${theme.shadow}`,
-          color: theme.text,
-          fontSize: '14px',
-          fontWeight: 500,
-          maxWidth: '500px',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}>
-          {bookTitle}
-        </div>
-      )}
-
-      {/* The Book */}
-      <div style={{
-        width: '850px',
-        height: `${window.innerHeight * 0.85}px`,
-        background: theme.pageBg,
-        boxShadow: `0 10px 40px ${theme.shadow}`,
-        position: 'relative',
+        width: '280px',
+        height: '100vh',
+        background: theme.paper,
+        borderRight: `1px solid ${theme.border}`,
         display: 'flex',
         flexDirection: 'column',
-        fontFamily: "'Palatino Linotype', 'Book Antiqua', Palatino, serif",
-        border: `1px solid ${theme.border}`,
+        padding: '32px 24px',
+        overflowY: 'auto',
       }}>
-        
-        {/* Page Content */}
-        <div
-          ref={scrollContainerRef}
-          onScroll={handleScroll}
-          onClick={handleContentClick}
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            cursor: 'pointer',
-            scrollBehavior: 'smooth',
-          }}
-        >
-          <div
-            ref={contentRef}
-            style={{
-              padding: '60px 80px',
-              fontSize: `${fontSize}px`,
-              lineHeight: `${lineHeight}`,
-              color: theme.text,
-              minHeight: '100%',
-            }}
-            dangerouslySetInnerHTML={{ __html: displayContent }}
-          />
+        {/* Book Title */}
+        <div style={{
+          marginBottom: '32px',
+          paddingBottom: '24px',
+          borderBottom: `1px solid ${theme.border}`,
+        }}>
+          <h1 style={{
+            fontSize: '18px',
+            fontWeight: 600,
+            margin: 0,
+            color: theme.text,
+            lineHeight: 1.4,
+          }}>
+            {bookTitle}
+          </h1>
         </div>
 
-        {/* Progress Bar */}
-        <div style={{
-          height: '40px',
-          background: theme.controlBg,
-          borderTop: `1px solid ${theme.border}`,
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 40px',
-          gap: '20px',
-        }}>
+        {/* Progress */}
+        <div style={{ marginBottom: '32px' }}>
           <div style={{
-            flex: 1,
+            fontSize: '12px',
+            color: theme.textLight,
+            marginBottom: '8px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+          }}>
+            Progress
+          </div>
+          <div style={{
+            fontSize: '24px',
+            fontWeight: 600,
+            color: theme.text,
+            fontVariantNumeric: 'tabular-nums',
+          }}>
+            {Math.round(progress)}%
+          </div>
+          <div style={{
+            marginTop: '12px',
             height: '2px',
             background: theme.border,
             borderRadius: '1px',
@@ -372,99 +211,44 @@ const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
             <div style={{
               width: `${progress}%`,
               height: '100%',
-              background: theme.text,
+              background: theme.accent,
               transition: 'width 0.3s ease',
             }} />
           </div>
-          <div style={{ 
-            fontSize: '11px', 
-            color: theme.textSecondary,
-            whiteSpace: 'nowrap',
-            minWidth: '80px',
-            textAlign: 'right',
-            fontVariantNumeric: 'tabular-nums',
-          }}>
-            {currentPage} / {totalPages}
-          </div>
         </div>
-      </div>
 
-      {/* Page Turn Indicators */}
-      {!showControls && scrollPosition > 0 && (
-        <div style={{
-          position: 'fixed',
-          left: 'calc(50% - 425px - 40px)',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          color: theme.textSecondary,
-          fontSize: '32px',
-          opacity: 0.3,
-          pointerEvents: 'none',
-        }}>
-          ‹
-        </div>
-      )}
-      {!showControls && scrollContainerRef.current && contentRef.current && 
-       scrollPosition < contentRef.current.scrollHeight - scrollContainerRef.current.clientHeight - 10 && (
-        <div style={{
-          position: 'fixed',
-          right: 'calc(50% - 425px - 40px)',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          color: theme.textSecondary,
-          fontSize: '32px',
-          opacity: 0.3,
-          pointerEvents: 'none',
-        }}>
-          ›
-        </div>
-      )}
+        {/* Settings Toggle */}
+        <button
+          onClick={() => setShowSettings(!showSettings)}
+          style={{
+            background: showSettings ? theme.accent : 'transparent',
+            color: showSettings ? theme.bg : theme.text,
+            border: `1px solid ${showSettings ? theme.accent : theme.border}`,
+            borderRadius: '4px',
+            padding: '12px 16px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 500,
+            marginBottom: '16px',
+            transition: 'all 0.2s ease',
+            fontFamily: 'inherit',
+          }}
+        >
+          {showSettings ? '✕ Close Settings' : '⚙ Settings'}
+        </button>
 
-      {/* Settings */}
-      {showSettings && (
-        <>
-          <div 
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(0, 0, 0, 0.5)',
-              zIndex: 1000,
-            }}
-            onClick={() => setShowSettings(false)}
-          />
+        {/* Settings Panel */}
+        {showSettings && (
           <div style={{
-            position: 'fixed',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: '380px',
-            maxHeight: '70vh',
-            background: theme.overlayBg,
-            backdropFilter: 'blur(10px)',
-            zIndex: 1001,
-            overflowY: 'auto',
-            padding: '30px',
-            borderRadius: '6px',
-            boxShadow: `0 10px 40px ${theme.shadow}`,
-            border: `1px solid ${theme.border}`,
+            paddingTop: '16px',
+            borderTop: `1px solid ${theme.border}`,
           }}>
-            <h2 style={{ 
-              fontSize: '18px', 
-              marginBottom: '24px',
-              fontWeight: 500,
-              color: theme.text,
-            }}>
-              Settings
-            </h2>
-
-            <div style={{ marginBottom: '20px' }}>
+            {/* Bionic Reading Toggle */}
+            <div style={{ marginBottom: '24px' }}>
               <label style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
-                gap: '10px',
+                gap: '12px',
                 cursor: 'pointer',
                 fontSize: '14px',
                 color: theme.text,
@@ -473,16 +257,29 @@ const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
                   type="checkbox"
                   checked={bionicEnabled}
                   onChange={(e) => setBionicEnabled(e.target.checked)}
-                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  style={{ 
+                    width: '18px', 
+                    height: '18px', 
+                    cursor: 'pointer',
+                    accentColor: theme.accent,
+                  }}
                 />
                 Bionic Reading
               </label>
             </div>
 
+            {/* Bold Percentage */}
             {bionicEnabled && (
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ fontSize: '12px', color: theme.textSecondary, display: 'block', marginBottom: '8px' }}>
-                  Bold: {Math.round(boldPercentage * 100)}%
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ 
+                  fontSize: '12px', 
+                  color: theme.textLight, 
+                  display: 'block', 
+                  marginBottom: '8px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}>
+                  Bold Intensity: {Math.round(boldPercentage * 100)}%
                 </label>
                 <input
                   type="range"
@@ -491,13 +288,25 @@ const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
                   step="0.05"
                   value={boldPercentage}
                   onChange={(e) => setBoldPercentage(parseFloat(e.target.value))}
-                  style={{ width: '100%', cursor: 'pointer' }}
+                  style={{ 
+                    width: '100%', 
+                    cursor: 'pointer',
+                    accentColor: theme.accent,
+                  }}
                 />
               </div>
             )}
 
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ fontSize: '12px', color: theme.textSecondary, display: 'block', marginBottom: '8px' }}>
+            {/* Font Size */}
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ 
+                fontSize: '12px', 
+                color: theme.textLight, 
+                display: 'block', 
+                marginBottom: '8px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+              }}>
                 Font Size: {fontSize}px
               </label>
               <input
@@ -507,12 +316,24 @@ const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
                 step="2"
                 value={fontSize}
                 onChange={(e) => setFontSize(parseInt(e.target.value))}
-                style={{ width: '100%', cursor: 'pointer' }}
+                style={{ 
+                  width: '100%', 
+                  cursor: 'pointer',
+                  accentColor: theme.accent,
+                }}
               />
             </div>
 
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ fontSize: '12px', color: theme.textSecondary, display: 'block', marginBottom: '8px' }}>
+            {/* Line Spacing */}
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ 
+                fontSize: '12px', 
+                color: theme.textLight, 
+                display: 'block', 
+                marginBottom: '8px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+              }}>
                 Line Spacing: {lineHeight.toFixed(1)}
               </label>
               <input
@@ -522,34 +343,84 @@ const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
                 step="0.1"
                 value={lineHeight}
                 onChange={(e) => setLineHeight(parseFloat(e.target.value))}
-                style={{ width: '100%', cursor: 'pointer' }}
+                style={{ 
+                  width: '100%', 
+                  cursor: 'pointer',
+                  accentColor: theme.accent,
+                }}
               />
             </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '10px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: theme.text,
-              }}>
-                <input
-                  type="checkbox"
-                  checked={darkMode}
-                  onChange={(e) => setDarkMode(e.target.checked)}
-                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                />
-                Dark Mode
-              </label>
-            </div>
           </div>
-        </>
-      )}
+        )}
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+
+        {/* New Book Button */}
+        <button
+          onClick={onNewFile}
+          style={{
+            background: 'transparent',
+            color: theme.textLight,
+            border: `1px solid ${theme.border}`,
+            borderRadius: '4px',
+            padding: '12px 16px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 500,
+            transition: 'all 0.2s ease',
+            fontFamily: 'inherit',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = theme.accent
+            e.currentTarget.style.color = theme.accent
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = theme.border
+            e.currentTarget.style.color = theme.textLight
+          }}
+        >
+          ← New Book
+        </button>
+      </div>
+
+      {/* Main Reading Area */}
+      <div style={{
+        flex: 1,
+        height: '100vh',
+        display: 'flex',
+        justifyContent: 'center',
+        background: theme.bg,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+      }}
+      ref={scrollContainerRef}
+      onScroll={handleScroll}
+      >
+        <div style={{
+          width: '100%',
+          maxWidth: '720px',
+          padding: '80px 60px 120px 60px',
+        }}>
+          <div
+            ref={contentRef}
+            style={{
+              fontSize: `${fontSize}px`,
+              lineHeight: `${lineHeight}`,
+              color: theme.text,
+            }}
+            dangerouslySetInnerHTML={{ __html: displayContent }}
+          />
+        </div>
+      </div>
 
       {/* Global Styles */}
       <style>{`
+        /* Smooth scrolling */
+        * {
+          scroll-behavior: smooth;
+        }
+        
         .chapter-content {
           margin-bottom: 3em;
         }
@@ -569,15 +440,28 @@ const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
           float: left;
           line-height: 0.9;
           margin: 0.05em 0.1em 0 0;
-          font-weight: bold;
+          font-weight: 600;
         }
         
         h1, h2, h3 {
-          text-align: center;
-          font-weight: 500;
-          letter-spacing: 0.3px;
-          margin: 1.5em 0 1em 0;
+          font-weight: 600;
+          letter-spacing: -0.02em;
+          margin: 2em 0 1em 0;
           text-indent: 0;
+          color: ${theme.text};
+        }
+        
+        h1 {
+          font-size: 1.8em;
+          text-align: center;
+        }
+        
+        h2 {
+          font-size: 1.4em;
+        }
+        
+        h3 {
+          font-size: 1.2em;
         }
         
         img {
@@ -585,23 +469,32 @@ const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
           height: auto;
           display: block;
           margin: 20px auto;
+          filter: grayscale(100%);
         }
         
-        *::-webkit-scrollbar {
-          width: 8px;
+        /* Custom scrollbar for reading area */
+        div::-webkit-scrollbar {
+          width: 6px;
         }
         
-        *::-webkit-scrollbar-track {
+        div::-webkit-scrollbar-track {
           background: transparent;
         }
         
-        *::-webkit-scrollbar-thumb {
-          background: ${theme.textSecondary};
-          border-radius: 4px;
+        div::-webkit-scrollbar-thumb {
+          background: ${theme.border};
+          border-radius: 3px;
         }
         
-        *::-webkit-scrollbar-thumb:hover {
-          background: ${theme.text};
+        div::-webkit-scrollbar-thumb:hover {
+          background: ${theme.textLight};
+        }
+        
+        /* Smooth text rendering */
+        body {
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          text-rendering: optimizeLegibility;
         }
       `}</style>
     </div>
