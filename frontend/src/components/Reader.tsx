@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
+import type { ReaderProps, Theme } from './types'
+import ReaderSidebar from './ReaderSidebar'
+import { useKeyboardShortcuts } from './useKeyboardShortcuts'
+import { getFormattedContent } from './BionicFormatter'
+import { saveBookPosition, loadBookPosition } from './BookStorage'
 
-interface ReaderProps {
-  bookContent: string
-  bookTitle: string
-  onNewFile: () => void
-}
-
-const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
+const Reader = ({ bookContent, bookTitle, bookAuthor, onNewFile }: ReaderProps) => {
   // Reading state
   const [scrollPosition, setScrollPosition] = useState(0)
+  const [hasRestoredPosition, setHasRestoredPosition] = useState(false)
   
   // Display preferences
   const [bionicEnabled, setBionicEnabled] = useState(true)
@@ -23,8 +23,8 @@ const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
   const contentRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  // Remarkable-inspired monochrome theme
-  const theme = {
+  // Theme
+  const theme: Theme = {
     bg: '#ffffff',
     paper: '#fafafa',
     text: '#1a1a1a',
@@ -34,86 +34,74 @@ const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
     shadow: 'rgba(0, 0, 0, 0.08)',
   }
 
-  // ==================== BIONIC FORMATTING ====================
+  // ==================== KEYBOARD SHORTCUTS ====================
   
-  const applyBionicFormatting = (html: string, percentage: number): string => {
-    if (!html) return ''
-    
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(html, 'text/html')
-    
-    const processNode = (node: Node) => {
-      if (node.nodeType === Node.TEXT_NODE && node.textContent) {
-        const text = node.textContent
-        if (text.trim()) {
-          const words = text.split(/(\s+)/)
-          const formatted = words.map(word => {
-            if (!word.trim()) return word
-            
-            const match = word.match(/^(\W*)(\w+)(\W*)$/)
-            if (!match) return word
-            
-            const [, prefix, core, suffix] = match
-            const len = core.length
-            let boldCount = 1
-            
-            if (len <= 2) boldCount = 1
-            else if (len <= 5) boldCount = 2
-            else boldCount = Math.max(1, Math.floor(len * percentage))
-            
-            const bold = core.slice(0, boldCount)
-            const regular = core.slice(boldCount)
-            
-            return `${prefix}<strong>${bold}</strong>${regular}${suffix}`
-          }).join('')
-          
-          const span = doc.createElement('span')
-          span.innerHTML = formatted
-          node.parentNode?.replaceChild(span, node)
-        }
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const element = node as Element
-        if (!['SCRIPT', 'STYLE', 'STRONG'].includes(element.tagName)) {
-          Array.from(node.childNodes).forEach(processNode)
-        }
+  useKeyboardShortcuts({
+    scrollContainerRef,
+    showSettings,
+    setShowSettings,
+    setBionicEnabled,
+    setFontSize,
+  })
+
+  // ==================== READING POSITION MANAGEMENT ====================
+  
+  // Restore reading position when book loads
+  useEffect(() => {
+    if (bookContent && !hasRestoredPosition && scrollContainerRef.current) {
+      const contentLength = bookContent.length
+      const savedPosition = loadBookPosition(bookTitle, bookAuthor, contentLength)
+      
+      if (savedPosition !== null) {
+        // Wait a tick for content to render, then restore position
+        setTimeout(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTo({ top: savedPosition, behavior: 'auto' })
+            const scrollHeight = scrollContainerRef.current.scrollHeight || 1
+            console.log(`📖 Restored position for "${bookTitle}" at ${Math.round((savedPosition / scrollHeight) * 100)}%`)
+          }
+        }, 100)
+      }
+      
+      setHasRestoredPosition(true)
+    }
+  }, [bookContent, bookTitle, bookAuthor, hasRestoredPosition])
+
+  // Save reading position periodically
+  useEffect(() => {
+    if (!bookContent || !hasRestoredPosition) return
+
+    const saveInterval = setInterval(() => {
+      const contentLength = bookContent.length
+      saveBookPosition(bookTitle, bookAuthor, scrollPosition, contentLength)
+    }, 5000) // Save every 5 seconds
+
+    return () => clearInterval(saveInterval)
+  }, [bookContent, bookTitle, bookAuthor, scrollPosition, hasRestoredPosition])
+
+  // Save position when unmounting
+  useEffect(() => {
+    return () => {
+      if (bookContent && hasRestoredPosition) {
+        const contentLength = bookContent.length
+        saveBookPosition(bookTitle, bookAuthor, scrollPosition, contentLength)
       }
     }
-    
-    Array.from(doc.body.childNodes).forEach(processNode)
-    return doc.body.innerHTML
-  }
+  }, [bookContent, bookTitle, bookAuthor, scrollPosition, hasRestoredPosition])
 
-  const stripBoldTags = (html: string): string => {
-    if (!html) return ''
-    
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(html, 'text/html')
-    const strongTags = doc.querySelectorAll('strong')
-    strongTags.forEach(strong => {
-      const textNode = doc.createTextNode(strong.textContent || '')
-      strong.parentNode?.replaceChild(textNode, strong)
-    })
-    return doc.body.innerHTML
-  }
-
-  // Apply formatting to the entire book
-  const displayContent = bookContent 
-    ? (bionicEnabled 
-        ? applyBionicFormatting(bookContent, boldPercentage)
-        : stripBoldTags(bookContent))
-    : ''
-
-  // ==================== PAGINATION & PROGRESS ====================
+  // ==================== BIONIC FORMATTING ====================
   
-  const totalHeight = contentRef.current ? contentRef.current.scrollHeight : 0
+  const displayContent = getFormattedContent(bookContent, bionicEnabled, boldPercentage)
+
+  // ==================== PROGRESS CALCULATION ====================
+  
   const maxScroll = scrollContainerRef.current && contentRef.current
     ? contentRef.current.scrollHeight - scrollContainerRef.current.clientHeight 
     : 0
 
-  // Simple progress percentage based on scroll position
   const progress = maxScroll > 0 ? (scrollPosition / maxScroll) * 100 : 0
 
-  // ==================== NAVIGATION ====================
+  // ==================== EVENT HANDLERS ====================
 
   const handleScroll = () => {
     if (scrollContainerRef.current) {
@@ -154,235 +142,17 @@ const Reader = ({ bookContent, bookTitle, onNewFile }: ReaderProps) => {
       fontFamily: "'Charter', 'Georgia', serif",
     }}>
       
-      {/* Left Sidebar - Persistent Controls */}
-      <div style={{
-        width: '280px',
-        height: '100vh',
-        background: theme.paper,
-        borderRight: `1px solid ${theme.border}`,
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '32px 24px',
-        overflowY: 'auto',
-      }}>
-        {/* Book Title */}
-        <div style={{
-          marginBottom: '32px',
-          paddingBottom: '24px',
-          borderBottom: `1px solid ${theme.border}`,
-        }}>
-          <h1 style={{
-            fontSize: '18px',
-            fontWeight: 600,
-            margin: 0,
-            color: theme.text,
-            lineHeight: 1.4,
-          }}>
-            {bookTitle}
-          </h1>
-        </div>
-
-        {/* Progress */}
-        <div style={{ marginBottom: '32px' }}>
-          <div style={{
-            fontSize: '12px',
-            color: theme.textLight,
-            marginBottom: '8px',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-          }}>
-            Progress
-          </div>
-          <div style={{
-            fontSize: '24px',
-            fontWeight: 600,
-            color: theme.text,
-            fontVariantNumeric: 'tabular-nums',
-          }}>
-            {Math.round(progress)}%
-          </div>
-          <div style={{
-            marginTop: '12px',
-            height: '2px',
-            background: theme.border,
-            borderRadius: '1px',
-            overflow: 'hidden',
-          }}>
-            <div style={{
-              width: `${progress}%`,
-              height: '100%',
-              background: theme.accent,
-              transition: 'width 0.3s ease',
-            }} />
-          </div>
-        </div>
-
-        {/* Settings Toggle */}
-        <button
-          onClick={() => setShowSettings(!showSettings)}
-          style={{
-            background: showSettings ? theme.accent : 'transparent',
-            color: showSettings ? theme.bg : theme.text,
-            border: `1px solid ${showSettings ? theme.accent : theme.border}`,
-            borderRadius: '4px',
-            padding: '12px 16px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: 500,
-            marginBottom: '16px',
-            transition: 'all 0.2s ease',
-            fontFamily: 'inherit',
-          }}
-        >
-          {showSettings ? '✕ Close Settings' : '⚙ Settings'}
-        </button>
-
-        {/* Settings Panel */}
-        {showSettings && (
-          <div style={{
-            paddingTop: '16px',
-            borderTop: `1px solid ${theme.border}`,
-          }}>
-            {/* Bionic Reading Toggle */}
-            <div style={{ marginBottom: '24px' }}>
-              <label style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '12px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: theme.text,
-              }}>
-                <input
-                  type="checkbox"
-                  checked={bionicEnabled}
-                  onChange={(e) => setBionicEnabled(e.target.checked)}
-                  style={{ 
-                    width: '18px', 
-                    height: '18px', 
-                    cursor: 'pointer',
-                    accentColor: theme.accent,
-                  }}
-                />
-                Bionic Reading
-              </label>
-            </div>
-
-            {/* Bold Percentage */}
-            {bionicEnabled && (
-              <div style={{ marginBottom: '24px' }}>
-                <label style={{ 
-                  fontSize: '12px', 
-                  color: theme.textLight, 
-                  display: 'block', 
-                  marginBottom: '8px',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                }}>
-                  Bold Intensity: {Math.round(boldPercentage * 100)}%
-                </label>
-                <input
-                  type="range"
-                  min="0.3"
-                  max="0.7"
-                  step="0.05"
-                  value={boldPercentage}
-                  onChange={(e) => setBoldPercentage(parseFloat(e.target.value))}
-                  style={{ 
-                    width: '100%', 
-                    cursor: 'pointer',
-                    accentColor: theme.accent,
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Font Size */}
-            <div style={{ marginBottom: '24px' }}>
-              <label style={{ 
-                fontSize: '12px', 
-                color: theme.textLight, 
-                display: 'block', 
-                marginBottom: '8px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}>
-                Font Size: {fontSize}px
-              </label>
-              <input
-                type="range"
-                min="14"
-                max="24"
-                step="2"
-                value={fontSize}
-                onChange={(e) => setFontSize(parseInt(e.target.value))}
-                style={{ 
-                  width: '100%', 
-                  cursor: 'pointer',
-                  accentColor: theme.accent,
-                }}
-              />
-            </div>
-
-            {/* Line Spacing */}
-            <div style={{ marginBottom: '24px' }}>
-              <label style={{ 
-                fontSize: '12px', 
-                color: theme.textLight, 
-                display: 'block', 
-                marginBottom: '8px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}>
-                Line Spacing: {lineHeight.toFixed(1)}
-              </label>
-              <input
-                type="range"
-                min="1.4"
-                max="2.2"
-                step="0.1"
-                value={lineHeight}
-                onChange={(e) => setLineHeight(parseFloat(e.target.value))}
-                style={{ 
-                  width: '100%', 
-                  cursor: 'pointer',
-                  accentColor: theme.accent,
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Spacer */}
-        <div style={{ flex: 1 }} />
-
-        {/* New Book Button */}
-        <button
-          onClick={onNewFile}
-          style={{
-            background: 'transparent',
-            color: theme.textLight,
-            border: `1px solid ${theme.border}`,
-            borderRadius: '4px',
-            padding: '12px 16px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: 500,
-            transition: 'all 0.2s ease',
-            fontFamily: 'inherit',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = theme.accent
-            e.currentTarget.style.color = theme.accent
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = theme.border
-            e.currentTarget.style.color = theme.textLight
-          }}
-        >
-          ← New Book
-        </button>
-      </div>
+      {/* Left Sidebar */}
+      <ReaderSidebar
+        bookTitle={bookTitle}
+        progress={progress}
+        showSettings={showSettings}
+        setShowSettings={setShowSettings}
+        preferences={{ bionicEnabled, boldPercentage, fontSize, lineHeight }}
+        setPreferences={{ setBionicEnabled, setBoldPercentage, setFontSize, setLineHeight }}
+        theme={theme}
+        onNewFile={onNewFile}
+      />
 
       {/* Main Reading Area */}
       <div style={{

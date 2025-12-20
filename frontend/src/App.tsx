@@ -99,6 +99,7 @@ function App() {
     <Reader
       bookContent={bookData.html_content}
       bookTitle={bookData.title}
+      bookAuthor={bookData.author}
       onNewFile={handleNewFile}
     />
   )
