@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from services.file_manager import file_manager
 from services.epub_service import extract_epub_data, get_chapter_content
 
-app = FastAPI()
+app = FastAPI(title="Bionic EPUB Reader API", version="1.0.0")
 
 # Configure CORS
 app.add_middleware(
@@ -59,13 +59,12 @@ async def get_chapter(
     bold_percentage: float = Query(0.5, ge=0.0, le=0.7)
 ):
     """
-    Get a specific chapter's content with bionic formatting.
+    Get a specific chapter's content as clean HTML.
     
     Args:
         file_id: Session ID from upload
         chapter_id: Chapter index (0-based)
-        bold_percentage: Percentage of each word to bold (0.0-0.7)
-                        Use 0.0 to get raw HTML without bionic formatting
+        bold_percentage: Kept for API compatibility (formatting is client-side)
     """
     # Retrieve file
     epub_bytes = file_manager.get_file(file_id)
@@ -77,7 +76,7 @@ async def get_chapter(
         )
     
     try:
-        # Get formatted chapter content
+        # Get chapter content
         chapter_data = get_chapter_content(epub_bytes, chapter_id, bold_percentage)
         return chapter_data
     except ValueError as e:

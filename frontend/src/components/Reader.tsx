@@ -9,14 +9,17 @@ interface ReaderProps {
 }
 
 const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
+  // Reading state
   const [currentChapter, setCurrentChapter] = useState(0)
   const [scrollPosition, setScrollPosition] = useState(0)
   const [rawChapterContent, setRawChapterContent] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  
+  // Display preferences
   const [bionicEnabled, setBionicEnabled] = useState(true)
   const [boldPercentage, setBoldPercentage] = useState(0.5)
   const [fontSize, setFontSize] = useState(18)
   const [lineHeight, setLineHeight] = useState(1.6)
-  const [isLoading, setIsLoading] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
   
   // UI state
@@ -24,12 +27,12 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
   const [showTOC, setShowTOC] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   
+  // Refs
   const contentRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null)
 
-
-  // E-reader theme - clean and simple
+  // Theme configuration
   const theme = {
     desk: '#1a1a1a',
     pageBg: darkMode ? '#1e1e1e' : '#faf9f6',
@@ -43,7 +46,8 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
     shadow: darkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.15)',
   }
 
-  // CLIENT-SIDE bionic formatting
+  // ==================== BIONIC FORMATTING ====================
+  
   const applyBionicFormatting = (html: string, percentage: number): string => {
     const parser = new DOMParser()
     const doc = parser.parseFromString(html, 'text/html')
@@ -89,7 +93,6 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
     return doc.body.innerHTML
   }
 
-  // Strip all strong tags
   const stripBoldTags = (html: string): string => {
     const parser = new DOMParser()
     const doc = parser.parseFromString(html, 'text/html')
@@ -101,24 +104,79 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
     return doc.body.innerHTML
   }
 
-  // Get formatted content
-  const getFormattedContent = (content: string): string => {
-    if (bionicEnabled) {
-      return applyBionicFormatting(content, boldPercentage)
-    } else {
-      return stripBoldTags(content)
-    }
-  }
+  const displayContent = bionicEnabled 
+    ? applyBionicFormatting(rawChapterContent, boldPercentage)
+    : stripBoldTags(rawChapterContent)
 
+  // ==================== PAGINATION ====================
+  
+  const pageHeight = contentRef.current 
+    ? contentRef.current.clientHeight 
+    : window.innerHeight * 0.85 - 120
 
-  // Calculate page height for scrolling
-  const pageHeight = contentRef.current ? contentRef.current.clientHeight : window.innerHeight * 0.85 - 120
-
-  // Calculate current page number based on scroll
   const totalHeight = contentRef.current ? contentRef.current.scrollHeight : 0
   const currentPage = totalHeight > 0 ? Math.floor(scrollPosition / pageHeight) + 1 : 1
   const totalPages = totalHeight > 0 ? Math.ceil(totalHeight / pageHeight) : 1
 
+  const chapterProgress = currentChapter / Math.max(1, chapters.length)
+  const pageProgress = totalPages > 1 ? ((currentPage - 1) / totalPages) / Math.max(1, chapters.length) : 0
+  const totalProgress = Math.min(100, (chapterProgress + pageProgress) * 100)
+
+  // ==================== NAVIGATION ====================
+  
+  const goToPrevPage = () => {
+    if (scrollContainerRef.current) {
+      const newScroll = Math.max(0, scrollPosition - pageHeight)
+      scrollContainerRef.current.scrollTo({
+        top: newScroll,
+        behavior: 'smooth'
+      })
+    }
+  }
+
+  const goToNextPage = () => {
+    if (scrollContainerRef.current && contentRef.current) {
+      const maxScroll = contentRef.current.scrollHeight - scrollContainerRef.current.clientHeight
+      const newScroll = Math.min(maxScroll, scrollPosition + pageHeight)
+      
+      if (newScroll >= maxScroll && currentChapter < chapters.length - 1) {
+        setCurrentChapter(currentChapter + 1)
+      } else {
+        scrollContainerRef.current.scrollTo({
+          top: newScroll,
+          behavior: 'smooth'
+        })
+      }
+    }
+  }
+
+  const goToChapter = (chapterId: number) => {
+    setCurrentChapter(chapterId)
+    setShowTOC(false)
+  }
+
+  const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const clickX = e.clientX - rect.left
+    const width = rect.width
+    
+    if (clickX < width * 0.3) {
+      goToPrevPage()
+    } else if (clickX > width * 0.7) {
+      goToNextPage()
+    } else {
+      setShowControls(!showControls)
+    }
+  }
+
+  const handleScroll = () => {
+    if (scrollContainerRef.current) {
+      setScrollPosition(scrollContainerRef.current.scrollTop)
+    }
+  }
+
+  // ==================== EFFECTS ====================
+  
   // Load chapter content
   useEffect(() => {
     const loadChapter = async () => {
@@ -141,18 +199,6 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
     loadChapter()
   }, [fileId, currentChapter])
 
-  // Get formatted content
-  const displayContent = bionicEnabled 
-    ? applyBionicFormatting(rawChapterContent, boldPercentage)
-    : stripBoldTags(rawChapterContent)
-
-  // Track scroll position
-  const handleScroll = () => {
-    if (scrollContainerRef.current) {
-      setScrollPosition(scrollContainerRef.current.scrollTop)
-    }
-  }
-
   // Auto-hide controls
   useEffect(() => {
     if (showControls && !showTOC && !showSettings) {
@@ -163,53 +209,6 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
       if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current)
     }
   }, [showControls, showTOC, showSettings])
-
-
-  const goToPrevPage = () => {
-    if (scrollContainerRef.current) {
-      const newScroll = Math.max(0, scrollPosition - pageHeight)
-      scrollContainerRef.current.scrollTo({
-        top: newScroll,
-        behavior: 'smooth'
-      })
-    }
-  }
-
-  const goToNextPage = () => {
-    if (scrollContainerRef.current && contentRef.current) {
-      const maxScroll = contentRef.current.scrollHeight - scrollContainerRef.current.clientHeight
-      const newScroll = Math.min(maxScroll, scrollPosition + pageHeight)
-      
-      if (newScroll >= maxScroll && currentChapter < chapters.length - 1) {
-        // End of chapter, go to next
-        setCurrentChapter(currentChapter + 1)
-      } else {
-        scrollContainerRef.current.scrollTo({
-          top: newScroll,
-          behavior: 'smooth'
-        })
-      }
-    }
-  }
-
-  const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const clickX = e.clientX - rect.left
-    const width = rect.width
-    
-    if (clickX < width * 0.3) {
-      goToPrevPage()
-    } else if (clickX > width * 0.7) {
-      goToNextPage()
-    } else {
-      setShowControls(!showControls)
-    }
-  }
-
-  const goToChapter = (chapterId: number) => {
-    setCurrentChapter(chapterId)
-    setShowTOC(false)
-  }
 
   // Keyboard navigation
   useEffect(() => {
@@ -230,10 +229,7 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
     return () => window.removeEventListener('keydown', handleKeyPress)
   })
 
-  // Calculate overall progress
-  const chapterProgress = currentChapter / Math.max(1, chapters.length)
-  const pageProgress = totalPages > 1 ? ((currentPage - 1) / totalPages) / Math.max(1, chapters.length) : 0
-  const totalProgress = Math.min(100, (chapterProgress + pageProgress) * 100)
+  // ==================== RENDER ====================
 
   return (
     <div style={{
@@ -350,7 +346,7 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
         border: `1px solid ${theme.border}`,
       }}>
         
-        {/* Page Content - Scrollable like real e-reader */}
+        {/* Page Content */}
         {isLoading ? (
           <div style={{
             flex: 1,
@@ -387,9 +383,7 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
                 color: theme.text,
                 minHeight: '100%',
               }}
-              dangerouslySetInnerHTML={{ 
-                __html: displayContent
-              }}
+              dangerouslySetInnerHTML={{ __html: displayContent }}
             />
           </div>
         )}
@@ -715,7 +709,6 @@ const Reader = ({ fileId, chapters, bookTitle, onNewFile }: ReaderProps) => {
           margin: 20px auto;
         }
         
-        /* Custom scrollbar */
         *::-webkit-scrollbar {
           width: 8px;
         }

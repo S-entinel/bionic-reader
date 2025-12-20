@@ -45,7 +45,6 @@ const FileUpload = ({ onFileSelect }: FileUploadProps) => {
         width: '100%',
         textAlign: 'center',
       }}>
-        {/* Logo/Icon */}
         <div style={{
           fontSize: '64px',
           marginBottom: '24px',
@@ -54,7 +53,6 @@ const FileUpload = ({ onFileSelect }: FileUploadProps) => {
           📚
         </div>
 
-        {/* Title */}
         <h1 style={{
           fontSize: '42px',
           fontWeight: 500,
@@ -75,7 +73,6 @@ const FileUpload = ({ onFileSelect }: FileUploadProps) => {
           Upload your EPUB to get started.
         </p>
 
-        {/* Upload Area */}
         <div
           onClick={() => fileInputRef.current?.click()}
           onDrop={handleDrop}
@@ -152,7 +149,6 @@ const FileUpload = ({ onFileSelect }: FileUploadProps) => {
           </button>
         </div>
 
-        {/* Features */}
         <div style={{
           marginTop: '48px',
           display: 'flex',
@@ -173,7 +169,6 @@ const FileUpload = ({ onFileSelect }: FileUploadProps) => {
             </div>
           </div>
           <div style={{ textAlign: 'center', maxWidth: '160px' }}>
-            <div style={{ fontSize: '24px', marginBottom: '8px' }}>📱</div>
             <div style={{ fontSize: '24px', marginBottom: '8px' }}>⚙️</div>
             <div style={{ fontSize: '14px', color: '#666' }}>
               Customizable reading experience
@@ -181,7 +176,6 @@ const FileUpload = ({ onFileSelect }: FileUploadProps) => {
           </div>
         </div>
 
-        {/* Info */}
         <div style={{
           marginTop: '48px',
           fontSize: '13px',
